@@ -1,8 +1,11 @@
 // src/app/submit/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Decimal } from "decimal.js";
+import { useSession } from "next-auth/react"; // <-- 1. Import useSession
+import { useRouter } from "next/navigation";
+import { hasRole } from "@/lib/users"; // <-- 2. Import our role checker
 
 // Define a type for the bid
 type Bid = {
@@ -13,7 +16,7 @@ type Bid = {
 
 // --- Reusable Form/Input Classes ---
 const inputClasses =
-  "mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-500 focus:ring-slate-500 sm:text-sm";
+  "mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-slate-500 focus:ring-slate-500 sm:text-sm px-3 py-2";
 const labelClasses = "block text-sm font-medium text-slate-700";
 const buttonClasses =
   "rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2";
@@ -33,8 +36,12 @@ const formatCurrency = (value: Decimal | number | string) => {
 // --------------------------------------------------------
 
 export default function SubmitPage() {
+  // --- 3. Get session and router ---
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
   // --- Define State ---
-  const [requesterEmail, setRequesterEmail] = useState("");
+  // (requesterEmail is now taken from session)
   const [site, setSite] = useState("");
   const [trade, setTrade] = useState("");
   const [tendersIssued, setTendersIssued] = useState(0);
@@ -47,6 +54,13 @@ export default function SubmitPage() {
   const [comments, setComments] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+
+  // 4. Check for login status
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login?callbackUrl=/submit"); // Redirect if not logged in
+    }
+  }, [status, router]);
 
   // --- Define Helper Functions ---
   const addBid = () => {
@@ -91,7 +105,7 @@ export default function SubmitPage() {
       const res = await fetch("/api/approvals", {
         method: "POST",
         body: JSON.stringify({
-          requesterEmail,
+          requesterEmail: session?.user?.email, // <-- 5. Get email from session
           site,
           trade,
           tendersIssued,
@@ -123,6 +137,26 @@ export default function SubmitPage() {
     }
   };
 
+  // --- 6. Handle loading and permissions ---
+  if (status === "loading") {
+    return <p>Loading...</p>; // Show loading state
+  }
+
+  if (status === "unauthenticated") {
+    return <p>Access Denied. Redirecting to login...</p>;
+  }
+
+  // @ts-ignore - We added 'roles' in our custom NextAuth callback
+  const userRoles = session?.user?.roles || [];
+  if (!hasRole(userRoles, "SUBMITTER")) {
+    return (
+      <p>
+        Access Denied. Your account does not have permission to submit requests.
+      </p>
+    );
+  }
+  // -----------------------------------------
+
   // --- Return JSX ---
   return (
     <div className="space-y-6">
@@ -133,6 +167,7 @@ export default function SubmitPage() {
       {/* --- Request Details Card --- */}
       <section className={`${cardClasses} p-6`}>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          {/* --- 7. MODIFIED: Email is now read-only --- */}
           <div>
             <label htmlFor="requesterEmail" className={labelClasses}>
               Your Email (for status updates)
@@ -140,12 +175,12 @@ export default function SubmitPage() {
             <input
               type="email"
               id="requesterEmail"
-              value={requesterEmail}
-              onChange={(e) => setRequesterEmail(e.target.value)}
-              className={`${inputClasses} px-3 py-2`}
-              placeholder="you@company.com"
+              value={session?.user?.email || ""}
+              readOnly // <-- Make it read-only
+              className={`${inputClasses} bg-slate-100`} // <-- Styled as disabled
             />
           </div>
+          {/* ------------------------------------------- */}
           <div>{/* Spacer */}</div>
           <div>
             <label htmlFor="site" className={labelClasses}>
@@ -156,7 +191,7 @@ export default function SubmitPage() {
               id="site"
               value={site}
               onChange={(e) => setSite(e.target.value)}
-              className={`${inputClasses} px-3 py-2`}
+              className={inputClasses}
               placeholder="e.g., Project London"
             />
           </div>
@@ -169,7 +204,7 @@ export default function SubmitPage() {
               id="trade"
               value={trade}
               onChange={(e) => setTrade(e.target.value)}
-              className={`${inputClasses} px-3 py-2`}
+              className={inputClasses}
               placeholder="e.g., Groundworks"
             />
           </div>
@@ -182,7 +217,7 @@ export default function SubmitPage() {
               id="tendersIssued"
               value={tendersIssued}
               onChange={(e) => setTendersIssued(parseInt(e.target.value) || 0)}
-              className={`${inputClasses} px-3 py-2`}
+              className={inputClasses}
             />
           </div>
           <div>
@@ -196,7 +231,7 @@ export default function SubmitPage() {
               onChange={(e) =>
                 setTendersReceived(parseInt(e.target.value) || 0)
               }
-              className={`${inputClasses} px-3 py-2`}
+              className={inputClasses}
             />
           </div>
 
@@ -267,17 +302,15 @@ export default function SubmitPage() {
                   cheapest && cheapestQuote.gt(0) && q.gt(0)
                     ? q.minus(cheapestQuote).div(cheapestQuote).times(100)
                     : new Decimal(0);
-                
-                // --- MODIFIED: Highlight logic ---
+
                 const isCheapest = cheapest && cheapest.id === b.id;
                 const isRecommended = recommendedId === b.id;
 
                 const rowClass = isRecommended
-                  ? "bg-green-50" // <-- Green for recommended
+                  ? "bg-green-50"
                   : isCheapest
-                  ? "bg-cyan-50" // <-- Cyan for cheapest
+                  ? "bg-cyan-50"
                   : undefined;
-                // ---------------------------------
 
                 return (
                   <tr key={b.id} className={rowClass}>
@@ -294,7 +327,7 @@ export default function SubmitPage() {
                             )
                           )
                         }
-                        className={`${inputClasses} min-w-40 px-3 py-2`}
+                        className={`${inputClasses} min-w-40`}
                       />
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
@@ -373,13 +406,17 @@ export default function SubmitPage() {
           rows={4}
           value={comments}
           onChange={(e) => setComments(e.target.value)}
-          className={`${inputClasses} px-3 py-2`}
+          className={inputClasses}
         />
       </section>
 
       {/* --- Submit --- */}
       <div className="flex items-center gap-4">
-        <button onClick={submit} disabled={saving} className={buttonClasses}>
+        <button
+          onClick={submit}
+          disabled={saving || !recommendedId} // <-- Also disable if no bid is recommended
+          className={`${buttonClasses} disabled:opacity-50`}
+        >
           {saving ? "Submitting..." : "Submit"}
         </button>
         {message && (
@@ -391,6 +428,11 @@ export default function SubmitPage() {
             }`}
           >
             {message}
+          </span>
+        )}
+        {!recommendedId && (
+          <span className="text-sm text-yellow-700">
+            Please recommend a bid to submit.
           </span>
         )}
       </div>
