@@ -1,69 +1,65 @@
 generator client {
-provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
-
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql" // <-- CHANGED FROM "sqlite"
   url      = env("DATABASE_URL")
 }
 
-
+// --- ENUMS ---
 enum Status {
-PENDING
-APPROVED
-REJECTED
+  PENDING
+  APPROVED
+  REJECTED
 }
-
 
 enum ActionType {
-APPROVE
-REJECT
+  APPROVE
+  REJECT
 }
 
-
+// --- MODELS ---
 model ApprovalRequest {
-id String @id @default(cuid())
-site String
-trade String
-tendersIssued Int
-tendersReceived Int
-budgetValue     Decimal
-estimatedProfit Decimal
-comments String?
-requesterEmail String
-status Status @default(PENDING)
-recommendedBidId String?
+  id               String   @id @default(cuid())
+  site             String
+  trade            String
+  tendersIssued    Int
+  tendersReceived  Int
+  budgetValue      Decimal // Prisma handles Decimal with Postgres
+  estimatedProfit  Decimal
+  comments         String?
+  requesterEmail   String
+  status           Status   @default(PENDING)
+  recommendedBidId String? // This will store the ID of the chosen Bid
 
+  bids    Bid[] // Relation to Bid model
+  actions ApprovalAction[] // Relation to ApprovalAction model
 
-bids Bid[]
-actions ApprovalAction[]
-
-
-createdAt DateTime @default(now())
-updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
-
 
 model Bid {
-id String @id @default(cuid())
-approvalRequestId String
-contractor String
-quote           Decimal
+  id                String   @id @default(cuid())
+  approvalRequestId String
+  contractor        String
+  quote             Decimal // Prisma handles Decimal with Postgres
 
+  approvalRequest ApprovalRequest @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
 
-approvalRequest ApprovalRequest @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
+  @@index([approvalRequestId]) // Add index for performance
 }
 
-
 model ApprovalAction {
-id String @id @default(cuid())
-approvalRequestId String
-actorEmail String
-action ActionType
-notes String?
-createdAt DateTime @default(now())
+  id                String     @id @default(cuid())
+  approvalRequestId String
+  actorEmail        String
+  action            ActionType
+  notes             String?
+  createdAt         DateTime   @default(now())
 
+  approvalRequest ApprovalRequest @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
 
-approvalRequest ApprovalRequest @relation(fields: [approvalRequestId], references: [id], onDelete: Cascade)
+  @@index([approvalRequestId]) // Add index for performance
 }
