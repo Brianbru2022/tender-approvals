@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* App-specific tweaks */
+html,
+body {
+  height: 100%;
+}
+.container {
+  @apply max-w-6xl mx-auto px-4;
+}
+
+/* Add some default table styles */
+.table {
+  @apply w-full text-left;
+}
+.table th,
+.table td {
+  @apply p-2 border-b border-slate-200;
+}
+.table th {
+  @apply font-semibold bg-slate-50;
+}
+.table tbody tr:hover {
+  @apply bg-slate-50;
+}
+
+/* src/app/globals.css */
+
+/* ... (your existing @tailwind lines) ... */
+
+/* Add these lines at the end */
+.table {
+  @apply w-full text-left;
+}
+.table th,
+.table td {
+  @apply whitespace-nowrap px-6 py-4 border-b border-slate-200;
+}
+.table th {
+  @apply bg-slate-50 text-left text-xs font-medium uppercase tracking-wider text-slate-500;
+}
+.table tbody tr:hover {
+  @apply bg-slate-50;
+}
